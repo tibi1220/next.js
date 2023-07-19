@@ -39,6 +39,7 @@ next-dev-tests = { path = "packages/next-swc/crates/next-dev-tests" }
 next-transform-font = { path = "packages/next-swc/crates/next-transform-font" }
 next-transform-dynamic = { path = "packages/next-swc/crates/next-transform-dynamic" }
 next-transform-strip-page-exports = { path = "packages/next-swc/crates/next-transform-strip-page-exports" }
+next-swc = { path = "packages/next-swc/crates/core" }
 
 # SWC crates
 # Keep consistent with preset_env_base through swc_core

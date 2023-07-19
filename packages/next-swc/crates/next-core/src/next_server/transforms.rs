@@ -11,6 +11,7 @@ use crate::{
     next_shared::transforms::{
         get_next_dynamic_transform_rule, get_next_font_transform_rule, get_next_image_rule,
         get_next_modularize_imports_rule, get_next_pages_transforms_rule,
+        get_server_actions_transform_rule,
     },
 };
 
@@ -37,10 +38,14 @@ pub async fn get_next_server_transforms_rules(
             );
             (false, Some(pages_dir))
         }
-        ServerContextType::AppSSR { .. } => (false, None),
+        ServerContextType::AppSSR { .. } => {
+            rules.push(get_server_actions_transform_rule(true));
+            (false, None)
+        }
         ServerContextType::AppRSC {
             client_transition, ..
         } => {
+            rules.push(get_server_actions_transform_rule(true));
             if let Some(client_transition) = client_transition {
                 rules.push(get_next_css_client_reference_transforms_rule(
                     client_transition,

@@ -3454,6 +3454,7 @@ dependencies = [
  "lazy_static",
  "mime",
  "mime_guess",
+ "next-swc",
  "next-transform-dynamic",
  "next-transform-font",
  "next-transform-strip-page-exports",
