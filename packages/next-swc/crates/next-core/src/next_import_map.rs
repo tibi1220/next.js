@@ -87,30 +87,68 @@ pub async fn get_next_client_import_map(
             );
         }
         ClientContextType::App { app_dir } => {
-            import_map.insert_exact_alias(
-                "react",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react"),
-            );
-            import_map.insert_wildcard_alias(
-                "react/",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react/*"),
-            );
-            import_map.insert_exact_alias(
-                "react-dom",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react-dom"),
-            );
-            import_map.insert_wildcard_alias(
-                "react-dom/",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react-dom/*"),
-            );
-            import_map.insert_wildcard_alias(
-                "react-server-dom-webpack/",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react-server-dom-webpack/*"),
-            );
-            import_map.insert_exact_alias(
-                "next/dynamic",
-                request_to_import_mapping(project_path, "next/dist/shared/lib/app-dynamic"),
-            );
+            // TODO: next_config.serverActions
+            let server_actions = true;
+            if server_actions {
+                import_map.insert_exact_alias(
+                    "react",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react-experimental"),
+                );
+                import_map.insert_wildcard_alias(
+                    "react/",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react-experimental/*"),
+                );
+                import_map.insert_exact_alias(
+                    "react-dom",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react-dom-experimental"),
+                );
+                import_map.insert_wildcard_alias(
+                    "react-dom/",
+                    request_to_import_mapping(
+                        app_dir,
+                        "next/dist/compiled/react-dom-experimental/*",
+                    ),
+                );
+                import_map.insert_wildcard_alias(
+                    "react-server-dom-webpack/",
+                    request_to_import_mapping(
+                        app_dir,
+                        "next/dist/compiled/react-server-dom-webpack-experimental/*",
+                    ),
+                );
+                import_map.insert_exact_alias(
+                    "next/dynamic",
+                    request_to_import_mapping(project_path, "next/dist/shared/lib/app-dynamic"),
+                );
+            } else {
+                import_map.insert_exact_alias(
+                    "react",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react"),
+                );
+                import_map.insert_wildcard_alias(
+                    "react/",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react/*"),
+                );
+                import_map.insert_exact_alias(
+                    "react-dom",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react-dom"),
+                );
+                import_map.insert_wildcard_alias(
+                    "react-dom/",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react-dom/*"),
+                );
+                import_map.insert_wildcard_alias(
+                    "react-server-dom-webpack/",
+                    request_to_import_mapping(
+                        app_dir,
+                        "next/dist/compiled/react-server-dom-webpack/*",
+                    ),
+                );
+                import_map.insert_exact_alias(
+                    "next/dynamic",
+                    request_to_import_mapping(project_path, "next/dist/shared/lib/app-dynamic"),
+                );
+            }
         }
         ClientContextType::Fallback => {}
         ClientContextType::Other => {}
@@ -240,6 +278,13 @@ pub async fn get_next_server_import_map(
                     import_map.insert_exact_alias("next/dist/server/web/sandbox", external);
                 }
             }
+            import_map.insert_exact_alias(
+                "private-next-rsc-action-proxy",
+                request_to_import_mapping(
+                    project_path,
+                    "next/dist/build/webpack/loaders/next-flight-loader/action-proxy",
+                ),
+            );
             import_map.insert_exact_alias(
                 "next/head",
                 request_to_import_mapping(project_path, "next/dist/client/components/noop-head"),
@@ -415,29 +460,68 @@ async fn insert_next_server_special_aliases(
                 // @opentelemetry/api
                 request_to_import_mapping(app_dir, "next/dist/compiled/@opentelemetry/api"),
             );
-            import_map.insert_exact_alias(
-                "react",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react"),
-            );
-            import_map.insert_wildcard_alias(
-                "react/",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react/*"),
-            );
-            import_map.insert_exact_alias(
-                "react-dom",
-                request_to_import_mapping(
-                    app_dir,
-                    "next/dist/compiled/react-dom/server-rendering-stub.js",
-                ),
-            );
-            import_map.insert_wildcard_alias(
-                "react-dom/",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react-dom/*"),
-            );
-            import_map.insert_wildcard_alias(
-                "react-server-dom-webpack/",
-                request_to_import_mapping(app_dir, "next/dist/compiled/react-server-dom-webpack/*"),
-            );
+
+            // TODO: next_config.serverActions
+            let server_actions = true;
+
+            if server_actions {
+                import_map.insert_exact_alias(
+                    "react",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react-experimental"),
+                );
+                import_map.insert_wildcard_alias(
+                    "react/",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react-experimental/*"),
+                );
+                import_map.insert_exact_alias(
+                    "react-dom",
+                    request_to_import_mapping(
+                        app_dir,
+                        "next/dist/compiled/react-dom-experimental/server-rendering-stub.js",
+                    ),
+                );
+                import_map.insert_wildcard_alias(
+                    "react-dom/",
+                    request_to_import_mapping(
+                        app_dir,
+                        "next/dist/compiled/react-dom-experimental/*",
+                    ),
+                );
+                import_map.insert_wildcard_alias(
+                    "react-server-dom-webpack/",
+                    request_to_import_mapping(
+                        app_dir,
+                        "next/dist/compiled/react-server-dom-webpack-experimental/*",
+                    ),
+                );
+            } else {
+                import_map.insert_exact_alias(
+                    "react",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react"),
+                );
+                import_map.insert_wildcard_alias(
+                    "react/",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react/*"),
+                );
+                import_map.insert_exact_alias(
+                    "react-dom",
+                    request_to_import_mapping(
+                        app_dir,
+                        "next/dist/compiled/react-dom/server-rendering-stub.js",
+                    ),
+                );
+                import_map.insert_wildcard_alias(
+                    "react-dom/",
+                    request_to_import_mapping(app_dir, "next/dist/compiled/react-dom/*"),
+                );
+                import_map.insert_wildcard_alias(
+                    "react-server-dom-webpack/",
+                    request_to_import_mapping(
+                        app_dir,
+                        "next/dist/compiled/react-server-dom-webpack/*",
+                    ),
+                );
+            }
         }
         // NOTE(alexkirsz) This logic maps loosely to
         // `next.js/packages/next/src/build/webpack-config.ts`, where:
@@ -459,6 +543,7 @@ async fn insert_next_server_special_aliases(
                 // @opentelemetry/api
                 request_to_import_mapping(app_dir, "next/dist/compiled/@opentelemetry/api"),
             );
+
             import_map.insert_exact_alias(
                 "react",
                 request_to_import_mapping(app_dir, "next/dist/compiled/react/react.shared-subset"),
