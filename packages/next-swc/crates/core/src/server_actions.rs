@@ -920,8 +920,7 @@ impl<C: Comments> VisitMut for ServerActions<C> {
                 let ident = Ident::new(id.0.clone(), DUMMY_SP.with_ctxt(id.1));
 
                 if !self.config.is_server {
-                    let action_id =
-                        generate_action_id(self.file_name.to_string(), export_name.to_string());
+                    let action_id = generate_action_id(&self.file_name.to_string(), export_name);
 
                     if export_name == "default" {
                         let export_expr = ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(
@@ -1153,7 +1152,7 @@ fn collect_pat_idents(pat: &Pat, closure_idents: &mut Vec<Id>) {
     }
 }
 
-fn generate_action_id(file_name: String, export_name: String) -> String {
+pub fn generate_action_id(file_name: &str, export_name: &str) -> String {
     // Attach a checksum to the action using sha1:
     // $$id = sha1('file_name' + ':' + 'export_name');
     let mut hasher = Sha1::new();
@@ -1179,7 +1178,7 @@ fn annotate_ident_as_action(
         // $$id
         ExprOrSpread {
             spread: None,
-            expr: Box::new(generate_action_id(file_name, export_name).into()),
+            expr: Box::new(generate_action_id(&file_name, &export_name).into()),
         },
         // myAction.$$bound = [arg1, arg2, arg3];
         // or myAction.$$bound = null; if there are no bound values.
