@@ -795,7 +795,7 @@ impl AppEndpoint {
                     actions,
                     &mut output_assets,
                     Vc::upcast(this.app_project.rsc_module_context()),
-                    Vc::upcast(this.app_project.project().ssr_chunking_context()),
+                    Vc::upcast(this.app_project.project().rsc_chunking_context()),
                 )
                 .await?;
 
