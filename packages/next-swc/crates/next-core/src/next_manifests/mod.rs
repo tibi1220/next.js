@@ -146,22 +146,17 @@ pub struct AppPathsManifest {
 #[derive(Serialize, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerReferenceManifest {
-    #[serde(flatten)]
-    pub server_actions: ActionManifest,
-    #[serde(flatten)]
-    pub edge_server_actions: ActionManifest,
-}
-
-#[derive(Serialize, Default, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ActionManifest {
-    #[serde(flatten)]
-    pub actions: HashMap<String, ActionManifestEntry>,
+    /// A map from hashed action name to the runtime module we that exports it.
+    pub node: HashMap<String, ActionManifestEntry>,
+    /// A map from hashed action name to the runtime module we that exports it.
+    pub edge: HashMap<String, ActionManifestEntry>,
 }
 
 #[derive(Serialize, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionManifestEntry {
+    /// A mapping from the page that uses the server action to the runtime
+    /// module that exports it.
     pub workers: HashMap<String, ActionManifestWorkerEntry>,
 }
 

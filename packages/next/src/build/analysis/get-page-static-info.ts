@@ -51,14 +51,14 @@ export interface PageStaticInfo {
 const CLIENT_MODULE_LABEL =
   /\/\* __next_internal_client_entry_do_not_use__ ([^ ]*) (cjs|auto) \*\//
 const ACTION_MODULE_LABEL =
-  /\/\* __next_internal_action_entry_do_not_use__ ([^ ]+) \*\//
+  /\/\* __next_internal_action_entry_do_not_use__ '([^']+)'([^ ]+) \*\//
 
 export type RSCModuleType = 'server' | 'client'
 export function getRSCModuleInformation(
   source: string,
   isServerLayer = true
 ): RSCMeta {
-  const actions = source.match(ACTION_MODULE_LABEL)?.[1]?.split(',')
+  const actions = source.match(ACTION_MODULE_LABEL)?.[2].split(',')
   const clientInfoMatch = source.match(CLIENT_MODULE_LABEL)
   const isClientRef = !!clientInfoMatch
 

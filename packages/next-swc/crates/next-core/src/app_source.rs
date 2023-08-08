@@ -1,16 +1,10 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    io::Write as _,
-    iter::once,
-};
+use std::{collections::HashMap, io::Write as _, iter::once};
 
 use anyhow::{bail, Result};
-use indexmap::{indexmap, IndexMap};
+use indexmap::indexmap;
 use indoc::indoc;
-use next_swc::server_actions::generate_action_id;
 use serde_json::Value as JsonValue;
-use swc_core::common::FileName;
-use turbo_tasks::{ValueToString, Vc};
+use turbo_tasks::Vc;
 use turbopack_binding::{
     turbo::{
         tasks::Value,
@@ -29,7 +23,7 @@ use turbopack_binding::{
             reference_type::{
                 EcmaScriptModulesReferenceSubType, EntryReferenceSubType, ReferenceType,
             },
-            source::{Source, Sources},
+            source::Sources,
             virtual_source::VirtualSource,
         },
         dev::DevChunkingContext,
@@ -42,7 +36,7 @@ use turbopack_binding::{
                 ContentSource, ContentSourceData, ContentSourceExt, NoContentSource,
             },
         },
-        ecmascript::{chunk::EcmascriptChunkingContext, parse::ParseResult, EcmascriptModuleAsset},
+        ecmascript::chunk::EcmascriptChunkingContext,
         env::ProcessEnvAsset,
         node::{
             debug::should_debug,
@@ -935,11 +929,7 @@ struct AppRenderer {
 #[turbo_tasks::value_impl]
 impl AppRenderer {
     #[turbo_tasks::function]
-    async fn entry(
-        self: Vc<Self>,
-        with_ssr: bool,
-        server_action: Option<String>,
-    ) -> Result<Vc<NodeRenderingEntry>> {
+    async fn entry(self: Vc<Self>, with_ssr: bool) -> Result<Vc<NodeRenderingEntry>> {
         let AppRenderer {
             runtime_entries,
             app_dir,
@@ -963,13 +953,6 @@ impl AppRenderer {
         let rsc_transition = match runtime {
             Some(NextRuntime::NodeJs) | None => "next-server-component",
             Some(NextRuntime::Edge) => "next-edge-server-component",
-        };
-
-        // If the request includes the Next-Action header, then we're invoking a Server
-        // Action.
-        if let Some(action) = server_action {
-            let actions = parse_actions(original_page_path(loader_tree), Vc::upcast(context));
-            todo!("{:#?}", actions.await?);
         };
 
         let loader_tree_module = LoaderTreeModule::build(
@@ -1088,20 +1071,13 @@ impl NodeEntry for AppRenderer {
     #[turbo_tasks::function]
     async fn entry(
         self: Vc<Self>,
-        data: Value<ContentSourceData>,
+        _data: Value<ContentSourceData>,
     ) -> Result<Vc<NodeRenderingEntry>> {
-        let data = data.into_value();
         // There seems to be a bug. If this is ever false, it gives a manifest error.
         let with_ssr = true;
 
-        let server_action = data.raw_headers.and_then(|headers| {
-            headers
-                .iter()
-                .find(|(k, _)| k == "next-action")
-                .map(|(_, v)| v.clone())
-        });
         // Call with only with_ssr as key
-        Ok(self.entry(with_ssr, server_action))
+        Ok(self.entry(with_ssr))
     }
 }
 
@@ -1217,73 +1193,4 @@ impl NodeEntry for AppRoute {
         // Call without being keyed by data
         self.entry()
     }
-}
-
-/// Maps the hashed `(filename, exported_action_name)` to
-/// `exported_action_name`.
-#[turbo_tasks::value(transparent)]
-struct ActionMap(IndexMap<String, String>);
-
-/// Finds the first page component in our loader tree, which should be the page
-/// we're currently rend rendering.
-#[turbo_tasks::function]
-async fn original_page_path(tree: Vc<LoaderTree>) -> Result<Vc<FileSystemPath>> {
-    let mut buf = VecDeque::new();
-    buf.push_back(tree);
-    // For some reason, the main LaoderTree doesn't have a page, and you need to
-    // recursively traverse every parallel route looking for it.
-    while let Some(tree) = buf.pop_front() {
-        let tree = tree.await?;
-        if let Some(page) = tree.components.await?.page {
-            return Ok(page);
-        }
-        buf.extend(tree.parallel_routes.values().cloned());
-    }
-    bail!("could not locate component's source path")
-}
-
-/// Actions names are stored in a leading BlockComment prefixed with
-/// `__next_internal_action_entry_do_not_use__`.
-/// https://github.com/vercel/next.js/blob/50f963f7/packages/next-swc/crates/core/src/server_actions.rs#L1034-L1054
-#[turbo_tasks::function]
-async fn parse_actions(
-    path: Vc<FileSystemPath>,
-    context: Vc<Box<dyn AssetContext>>,
-) -> Result<Vc<ActionMap>> {
-    let source = Vc::upcast(FileSource::new(path));
-
-    let module = context.process(
-        source,
-        turbo_tasks::Value::new(ReferenceType::EcmaScriptModules(
-            EcmaScriptModulesReferenceSubType::Undefined,
-        )),
-    );
-    let Some(ecmascript_asset) =
-        Vc::try_resolve_downcast_type::<EcmascriptModuleAsset>(module).await?
-    else {
-        bail!("failed to convert action file into module")
-    };
-
-    let ParseResult::Ok { comments, .. } = &*ecmascript_asset.parse().await? else {
-        bail!("failed to parse action module")
-    };
-
-    let file = FileName::Custom(source.ident().to_string().await?.clone_value()).to_string();
-
-    let actions = comments.leading.iter().find_map(|kv| {
-        // first level is BytePos -> Vec<Comment>
-        kv.value().iter().find_map(|c| {
-            c.text
-                .split_once("__next_internal_action_entry_do_not_use__")
-                .map(|(_, names)| {
-                    names
-                        .trim()
-                        .split(',')
-                        .map(|action| (generate_action_id(&file, action), action.to_string()))
-                        .collect()
-                })
-        })
-    });
-
-    Ok(Vc::cell(actions.unwrap_or_default()))
 }

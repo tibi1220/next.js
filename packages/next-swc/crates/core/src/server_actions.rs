@@ -1,4 +1,7 @@
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    iter::FromIterator,
+};
 
 use hex::encode as hex_encode;
 use serde::Deserialize;
@@ -33,7 +36,7 @@ pub fn server_actions<C: Comments>(
     as_folder(ServerActions {
         config,
         comments,
-        file_name: file_name.clone(),
+        file_name: file_name.to_string(),
         start_pos: BytePos(0),
         in_action_file: false,
         in_export_decl: false,
@@ -55,10 +58,48 @@ pub fn server_actions<C: Comments>(
     })
 }
 
+/// Parses the Server Actions comment for all exported action function names.
+///
+/// Action names are stored in a leading BlockComment prefixed by
+/// `__next_internal_action_entry_do_not_use__`.
+/// https://github.com/vercel/next.js/blob/50f963f7/packages/next-swc/crates/core/src/server_actions.rs#L1034-L1054
+pub fn parse_server_actions<C: Comments, O: FromIterator<(String, String)>>(
+    program: &Program,
+    comments: C,
+) -> Option<O> {
+    let byte_pos = match program {
+        Program::Module(m) => m.span.lo,
+        Program::Script(s) => s.span.lo,
+    };
+    comments.get_leading(byte_pos).and_then(|comments| {
+        comments.iter().find_map(|c| {
+            c.text
+                .split_once("__next_internal_action_entry_do_not_use__")
+                .and_then(|(_, remaining)| {
+                    let mut splits = remaining.splitn(3, '\'');
+                    // Eat everything until the opening `'`.
+                    let _ = splits.next()?;
+                    let file_name = splits.next()?;
+                    // Finally, we have action names separated by `,`
+                    Some(
+                        splits
+                            .next()?
+                            .trim()
+                            .split(',')
+                            .map(|action| {
+                                (generate_action_id(file_name, action), action.to_string())
+                            })
+                            .collect(),
+                    )
+                })
+        })
+    })
+}
+
 struct ServerActions<C: Comments> {
     #[allow(unused)]
     config: Config,
-    file_name: FileName,
+    file_name: String,
     comments: C,
 
     start_pos: BytePos,
@@ -216,7 +257,7 @@ impl<C: Comments> ServerActions<C> {
                     .cloned()
                     .map(|id| Some(id.as_arg()))
                     .collect(),
-                self.file_name.to_string(),
+                &self.file_name,
                 export_name.to_string(),
                 Some(action_ident.clone()),
             );
@@ -317,7 +358,7 @@ impl<C: Comments> ServerActions<C> {
                     .cloned()
                     .map(|id| Some(id.as_arg()))
                     .collect(),
-                self.file_name.to_string(),
+                &self.file_name,
                 export_name.to_string(),
                 Some(action_ident.clone()),
             );
@@ -920,7 +961,7 @@ impl<C: Comments> VisitMut for ServerActions<C> {
                 let ident = Ident::new(id.0.clone(), DUMMY_SP.with_ctxt(id.1));
 
                 if !self.config.is_server {
-                    let action_id = generate_action_id(&self.file_name.to_string(), export_name);
+                    let action_id = generate_action_id(&self.file_name, export_name);
 
                     if export_name == "default" {
                         let export_expr = ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(
@@ -967,7 +1008,7 @@ impl<C: Comments> VisitMut for ServerActions<C> {
                         &mut self.annotations,
                         ident.clone(),
                         Vec::new(),
-                        self.file_name.to_string(),
+                        &self.file_name,
                         export_name.to_string(),
                         None,
                     );
@@ -1037,7 +1078,8 @@ impl<C: Comments> VisitMut for ServerActions<C> {
                     kind: CommentKind::Block,
                     // Append a list of exported actions.
                     text: format!(
-                        " __next_internal_action_entry_do_not_use__ {} ",
+                        " __next_internal_action_entry_do_not_use__ '{}' {} ",
+                        self.file_name,
                         if self.in_action_file {
                             self.exported_idents
                                 .iter()
@@ -1152,7 +1194,7 @@ fn collect_pat_idents(pat: &Pat, closure_idents: &mut Vec<Id>) {
     }
 }
 
-pub fn generate_action_id(file_name: &str, export_name: &str) -> String {
+fn generate_action_id(file_name: &str, export_name: &str) -> String {
     // Attach a checksum to the action using sha1:
     // $$id = sha1('file_name' + ':' + 'export_name');
     let mut hasher = Sha1::new();
@@ -1168,7 +1210,7 @@ fn annotate_ident_as_action(
     annotations: &mut Vec<Stmt>,
     ident: Ident,
     bound: Vec<Option<ExprOrSpread>>,
-    file_name: String,
+    file_name: &str,
     export_name: String,
     maybe_orig_action_ident: Option<Ident>,
 ) {
@@ -1178,7 +1220,7 @@ fn annotate_ident_as_action(
         // $$id
         ExprOrSpread {
             spread: None,
-            expr: Box::new(generate_action_id(&file_name, &export_name).into()),
+            expr: Box::new(generate_action_id(file_name, &export_name).into()),
         },
         // myAction.$$bound = [arg1, arg2, arg3];
         // or myAction.$$bound = null; if there are no bound values.
