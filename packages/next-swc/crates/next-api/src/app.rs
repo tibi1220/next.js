@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use anyhow::{bail, Context, Result};
 use next_core::{
     all_server_paths,
@@ -55,7 +57,7 @@ use turbopack_binding::{
 use crate::{
     project::Project,
     route::{Endpoint, Route, Routes, WrittenEndpoint},
-    server_actions::{create_server_actions_manifest, get_actions, ModuleActionMap},
+    server_actions::create_server_actions_manifest,
 };
 
 #[turbo_tasks::value]
@@ -751,6 +753,32 @@ impl AppEndpoint {
                 }
             }
             NextRuntime::NodeJs => {
+                let mut entries = this.app_project.rsc_runtime_entries();
+                if *this
+                    .app_project
+                    .project()
+                    .next_config()
+                    .enable_server_actions()
+                    .await?
+                {
+                    let actions_output = create_server_actions_manifest(
+                        app_entry.rsc_entry,
+                        node_root,
+                        &app_entry.original_name,
+                        NextRuntime::NodeJs,
+                        Vc::upcast(this.app_project.rsc_module_context()),
+                        Vc::upcast(this.app_project.project().rsc_chunking_context()),
+                    )
+                    .await?;
+                    if let Some((loader, manifest)) = actions_output {
+                        output_assets.push(manifest);
+
+                        let entries_value = entries.await?;
+                        entries =
+                            Vc::cell(entries_value.iter().cloned().chain(once(loader)).collect());
+                    }
+                }
+
                 let rsc_chunk = this
                     .app_project
                     .project()
@@ -761,7 +789,7 @@ impl AppEndpoint {
                             original_name = app_entry.original_name
                         )),
                         app_entry.rsc_entry,
-                        this.app_project.rsc_runtime_entries(),
+                        entries,
                     );
                 server_assets.push(rsc_chunk);
 
@@ -778,25 +806,6 @@ impl AppEndpoint {
 
                 // TODO Generate server entry point that imports all actions by importing their
                 // respective modules.
-
-                if *this
-                    .app_project
-                    .project()
-                    .next_config()
-                    .enable_server_actions()
-                    .await?
-                {
-                    create_server_actions_manifest(
-                        app_entry.rsc_entry,
-                        node_root,
-                        &app_entry.original_name,
-                        NextRuntime::NodeJs,
-                        &mut output_assets,
-                        Vc::upcast(this.app_project.rsc_module_context()),
-                        Vc::upcast(this.app_project.project().rsc_chunking_context()),
-                    )
-                    .await?;
-                }
 
                 AppEndpointOutput::NodeJs {
                     rsc_chunk,

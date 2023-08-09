@@ -17,7 +17,7 @@ use turbopack_binding::{
     turbopack::{
         core::{
             asset::AssetContent,
-            chunk::{Chunk, ChunkableModule, ChunkingContext},
+            chunk::{ChunkItem, EvaluatableAsset},
             context::AssetContext,
             module::Module,
             output::OutputAsset,
@@ -26,7 +26,11 @@ use turbopack_binding::{
             virtual_output::VirtualOutputAsset,
             virtual_source::VirtualSource,
         },
-        ecmascript::{chunk::EcmascriptChunkPlaceable, parse::ParseResult, EcmascriptModuleAsset},
+        ecmascript::{
+            chunk::{EcmascriptChunkPlaceable, EcmascriptChunkingContext},
+            parse::ParseResult,
+            EcmascriptModuleAsset,
+        },
     },
 };
 
@@ -35,8 +39,7 @@ async fn build_server_actions_loader(
     original_name: &str,
     actions: Vc<ModuleActionMap>,
     asset_context: Vc<Box<dyn AssetContext>>,
-    chunking_context: Vc<Box<dyn ChunkingContext>>,
-) -> Result<Vc<Box<dyn Chunk>>> {
+) -> Result<Vc<Box<dyn EcmascriptChunkPlaceable>>> {
     let actions = actions.await?;
 
     let mut contents = RopeBuilder::from("__turbopack_export_value__({\n");
@@ -63,13 +66,13 @@ async fn build_server_actions_loader(
         Value::new(ReferenceType::Internal(Vc::cell(import_map))),
     );
 
-    let Some(module) =
+    let Some(placeable) =
         Vc::try_resolve_sidecast::<Box<dyn EcmascriptChunkPlaceable>>(module).await?
     else {
         bail!("internal module must be evaluatable");
     };
 
-    Ok(module.as_root_chunk(chunking_context))
+    Ok(placeable)
 }
 
 pub(crate) async fn create_server_actions_manifest(
@@ -77,15 +80,14 @@ pub(crate) async fn create_server_actions_manifest(
     node_root: Vc<FileSystemPath>,
     original_name: &str,
     runtime: NextRuntime,
-    output_assets: &mut Vec<Vc<Box<dyn OutputAsset>>>,
     asset_context: Vc<Box<dyn AssetContext>>,
-    chunking_context: Vc<Box<dyn ChunkingContext>>,
-) -> Result<()> {
+    chunking_context: Vc<Box<dyn EcmascriptChunkingContext>>,
+) -> Result<Option<(Vc<Box<dyn EvaluatableAsset>>, Vc<Box<dyn OutputAsset>>)>> {
     let actions = get_actions(Vc::upcast(entry));
     let actions_value = actions.await?;
 
     if actions_value.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
 
     let path = node_root.join(format!(
@@ -99,17 +101,13 @@ pub(crate) async fn create_server_actions_manifest(
         NextRuntime::NodeJs => &mut manifest.node,
     };
 
-    let loader_chunk = build_server_actions_loader(
-        node_root,
-        original_name,
-        actions,
-        asset_context,
-        chunking_context,
-    )
-    .await?;
-
-    let loader_outputs = chunking_context.chunk_group(loader_chunk).await?;
-    output_assets.extend(loader_outputs.iter().cloned());
+    let loader =
+        build_server_actions_loader(node_root, original_name, actions, asset_context).await?;
+    let chunk_item_id = loader
+        .as_chunk_item(chunking_context)
+        .asset_ident()
+        .to_string()
+        .await?;
 
     for value in actions_value.values() {
         let value = value.await?;
@@ -117,18 +115,21 @@ pub(crate) async fn create_server_actions_manifest(
             let entry = mapping.entry(hash.clone()).or_default();
             entry.workers.insert(
                 format!("app{original_name}"),
-                ActionManifestWorkerEntry::String(
-                    loader_chunk.ident().to_string().await?.clone_value(),
-                ),
+                ActionManifestWorkerEntry::String(chunk_item_id.clone_value()),
             );
         }
     }
-
-    output_assets.push(Vc::upcast(VirtualOutputAsset::new(
+    let manifest = Vc::upcast(VirtualOutputAsset::new(
         path,
         AssetContent::file(File::from(serde_json::to_string_pretty(&manifest)?).into()),
-    )));
-    Ok(())
+    ));
+
+    let Some(evaluable) = Vc::try_resolve_sidecast::<Box<dyn EvaluatableAsset>>(loader).await?
+    else {
+        bail!("loader module must be evaluatable");
+    };
+
+    Ok(Some((evaluable, manifest)))
 }
 
 /// Finds the first page component in our loader tree, which should be the page
