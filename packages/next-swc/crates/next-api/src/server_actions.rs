@@ -1,39 +1,37 @@
-use std::{collections::VecDeque, io::Write};
+use std::{
+    collections::{HashSet, VecDeque},
+    io::Write,
+};
 
 use anyhow::{bail, Result};
 use indexmap::IndexMap;
 use indoc::writedoc;
 use next_core::{
-    app_structure::LoaderTree,
     next_manifests::{ActionManifestWorkerEntry, ServerReferenceManifest},
     util::NextRuntime,
 };
 use next_swc::server_actions::parse_server_actions;
-use turbo_tasks::{debug::ValueDebug, Value, ValueToString, Vc};
+use turbo_tasks::{Value, ValueToString, Vc};
 use turbopack_binding::{
     turbo::tasks_fs::{rope::RopeBuilder, File, FileSystemPath},
     turbopack::{
         core::{
-            asset::{Asset, AssetContent},
+            asset::AssetContent,
             chunk::{Chunk, ChunkableModule, ChunkingContext},
             context::AssetContext,
-            file_source::FileSource,
             module::Module,
-            output::{OutputAsset, OutputAssets},
+            output::OutputAsset,
             reference::all_referenced_modules,
-            reference_type::{EcmaScriptModulesReferenceSubType, ReferenceType},
-            source::Source,
+            reference_type::ReferenceType,
             virtual_output::VirtualOutputAsset,
             virtual_source::VirtualSource,
         },
         ecmascript::{chunk::EcmascriptChunkPlaceable, parse::ParseResult, EcmascriptModuleAsset},
-        turbopack::rebase::RebasedAsset,
     },
 };
 
 async fn build_server_actions_loader(
     node_root: Vc<FileSystemPath>,
-    project_root: Vc<FileSystemPath>,
     original_name: &str,
     actions: Vc<ModuleActionMap>,
     asset_context: Vc<Box<dyn AssetContext>>,
@@ -75,16 +73,17 @@ async fn build_server_actions_loader(
 }
 
 pub(crate) async fn create_server_actions_manifest(
+    entry: Vc<Box<dyn EcmascriptChunkPlaceable>>,
     node_root: Vc<FileSystemPath>,
-    project_root: Vc<FileSystemPath>,
     original_name: &str,
     runtime: NextRuntime,
-    actions: Vc<ModuleActionMap>,
     output_assets: &mut Vec<Vc<Box<dyn OutputAsset>>>,
     asset_context: Vc<Box<dyn AssetContext>>,
     chunking_context: Vc<Box<dyn ChunkingContext>>,
 ) -> Result<()> {
+    let actions = get_actions(Vc::upcast(entry));
     let actions_value = actions.await?;
+
     if actions_value.is_empty() {
         return Ok(());
     }
@@ -102,7 +101,6 @@ pub(crate) async fn create_server_actions_manifest(
 
     let loader_chunk = build_server_actions_loader(
         node_root,
-        project_root,
         original_name,
         actions,
         asset_context,
@@ -136,23 +134,11 @@ pub(crate) async fn create_server_actions_manifest(
 /// Finds the first page component in our loader tree, which should be the page
 /// we're currently rendering.
 #[turbo_tasks::function]
-pub(crate) async fn get_actions(
-    loader_tree: Vc<LoaderTree>,
-    context: Vc<Box<dyn AssetContext>>,
-) -> Result<Vc<ModuleActionMap>> {
+pub(crate) async fn get_actions(module: Vc<Box<dyn Module>>) -> Result<Vc<ModuleActionMap>> {
     let mut all_actions = IndexMap::new();
 
-    let source: Vc<Box<dyn Source>> = Vc::upcast(FileSource::new(original_page_path(loader_tree)));
-    // To avoid regex searching, we turn the file into it's SWC parse result and
-    // iterate the leading comments.
-    let module = context.process(
-        source,
-        turbo_tasks::Value::new(ReferenceType::EcmaScriptModules(
-            EcmaScriptModulesReferenceSubType::Undefined,
-        )),
-    );
-
     let mut queue = VecDeque::from([module]);
+    let mut seen = HashSet::new();
     while let Some(module) = queue.pop_front() {
         if let Some(actions) = &*parse_actions(module).await? {
             all_actions.insert(module, *actions);
@@ -160,28 +146,10 @@ pub(crate) async fn get_actions(
 
         // TODO: traversal graph
         let others = all_referenced_modules(module).await?;
-        queue.extend(others.iter().cloned());
+        queue.extend(others.iter().filter(|m| seen.insert(**m)).cloned());
     }
 
     Ok(Vc::cell(all_actions))
-}
-
-/// Finds the first page component in our loader tree, which should be the page
-/// we're currently rendering.
-#[turbo_tasks::function]
-async fn original_page_path(tree: Vc<LoaderTree>) -> Result<Vc<FileSystemPath>> {
-    let mut queue = VecDeque::new();
-    queue.push_back(tree);
-    // For some reason, the main LaoderTree doesn't have a page, and you need to
-    // recursively traverse every parallel route looking for it.
-    while let Some(tree) = queue.pop_front() {
-        let tree_value = tree.await?;
-        if let Some(page) = tree_value.components.await?.page {
-            return Ok(page);
-        }
-        queue.extend(tree_value.parallel_routes.values().cloned());
-    }
-    bail!("could not locate component's source path")
 }
 
 #[turbo_tasks::function]

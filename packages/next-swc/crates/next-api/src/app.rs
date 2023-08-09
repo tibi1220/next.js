@@ -472,20 +472,12 @@ impl AppEndpoint {
     async fn output(self: Vc<Self>) -> Result<Vc<AppEndpointOutput>> {
         let this = self.await?;
 
-        let (app_entry, actions) = match this.ty {
-            AppEndpointType::Page { ty: _, loader_tree } => (
-                self.app_page_entry(loader_tree),
-                get_actions(
-                    loader_tree,
-                    Vc::upcast(this.app_project.rsc_module_context()),
-                ),
-            ),
+        let app_entry = match this.ty {
+            AppEndpointType::Page { ty: _, loader_tree } => self.app_page_entry(loader_tree),
             // NOTE(alexkirsz) For routes, technically, a lot of the following code is not needed,
             // as we know we won't have any client references. However, for now, for simplicity's
             // sake, we just do the same thing as for pages.
-            AppEndpointType::Route { path } => {
-                (self.app_route_entry(path), ModuleActionMap::empty())
-            }
+            AppEndpointType::Route { path } => self.app_route_entry(path),
         };
 
         let node_root = this.app_project.project().node_root();
@@ -787,17 +779,24 @@ impl AppEndpoint {
                 // TODO Generate server entry point that imports all actions by importing their
                 // respective modules.
 
-                create_server_actions_manifest(
-                    node_root,
-                    this.app_project.project().project_path(),
-                    &app_entry.original_name,
-                    NextRuntime::NodeJs,
-                    actions,
-                    &mut output_assets,
-                    Vc::upcast(this.app_project.rsc_module_context()),
-                    Vc::upcast(this.app_project.project().rsc_chunking_context()),
-                )
-                .await?;
+                if *this
+                    .app_project
+                    .project()
+                    .next_config()
+                    .enable_server_actions()
+                    .await?
+                {
+                    create_server_actions_manifest(
+                        app_entry.rsc_entry,
+                        node_root,
+                        &app_entry.original_name,
+                        NextRuntime::NodeJs,
+                        &mut output_assets,
+                        Vc::upcast(this.app_project.rsc_module_context()),
+                        Vc::upcast(this.app_project.project().rsc_chunking_context()),
+                    )
+                    .await?;
+                }
 
                 AppEndpointOutput::NodeJs {
                     rsc_chunk,
