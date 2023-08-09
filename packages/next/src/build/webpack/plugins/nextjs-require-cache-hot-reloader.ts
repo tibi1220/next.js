@@ -19,6 +19,7 @@ const originModules = [
   require.resolve(
     '../../../compiled/react-server-dom-webpack-experimental/client.edge'
   ),
+  require.resolve('../../../server/app-render/use-flight-response.js'),
 ]
 
 const RUNTIME_NAMES = ['webpack-runtime', 'webpack-api-runtime']
