@@ -16,18 +16,12 @@ use turbopack_binding::{
     turbo::tasks_fs::{rope::RopeBuilder, File, FileSystemPath},
     turbopack::{
         core::{
-            asset::AssetContent,
-            chunk::{ChunkItem, EvaluatableAsset},
-            context::AssetContext,
-            module::Module,
-            output::OutputAsset,
-            reference::all_referenced_modules,
-            reference_type::ReferenceType,
-            virtual_output::VirtualOutputAsset,
-            virtual_source::VirtualSource,
+            asset::AssetContent, chunk::EvaluatableAsset, context::AssetContext, module::Module,
+            output::OutputAsset, reference::all_referenced_modules, reference_type::ReferenceType,
+            virtual_output::VirtualOutputAsset, virtual_source::VirtualSource,
         },
         ecmascript::{
-            chunk::{EcmascriptChunkPlaceable, EcmascriptChunkingContext},
+            chunk::{EcmascriptChunkItemExt, EcmascriptChunkPlaceable, EcmascriptChunkingContext},
             parse::ParseResult,
             EcmascriptModuleAsset,
         },
@@ -82,13 +76,12 @@ pub(crate) async fn create_server_actions_manifest(
     runtime: NextRuntime,
     asset_context: Vc<Box<dyn AssetContext>>,
     chunking_context: Vc<Box<dyn EcmascriptChunkingContext>>,
-) -> Result<Option<(Vc<Box<dyn EvaluatableAsset>>, Vc<Box<dyn OutputAsset>>)>> {
+) -> Result<(
+    Option<Vc<Box<dyn EvaluatableAsset>>>,
+    Vc<Box<dyn OutputAsset>>,
+)> {
     let actions = get_actions(Vc::upcast(entry));
     let actions_value = actions.await?;
-
-    if actions_value.is_empty() {
-        return Ok(None);
-    }
 
     let path = node_root.join(format!(
         "server/app{original_name}/server-reference-manifest.json",
@@ -96,6 +89,15 @@ pub(crate) async fn create_server_actions_manifest(
     let mut manifest = ServerReferenceManifest {
         ..Default::default()
     };
+
+    if actions_value.is_empty() {
+        let manifest = Vc::upcast(VirtualOutputAsset::new(
+            path,
+            AssetContent::file(File::from(serde_json::to_string_pretty(&manifest)?).into()),
+        ));
+        return Ok((None, manifest));
+    }
+
     let mapping = match runtime {
         NextRuntime::Edge => &mut manifest.edge,
         NextRuntime::NodeJs => &mut manifest.node,
@@ -105,7 +107,7 @@ pub(crate) async fn create_server_actions_manifest(
         build_server_actions_loader(node_root, original_name, actions, asset_context).await?;
     let chunk_item_id = loader
         .as_chunk_item(chunking_context)
-        .asset_ident()
+        .id()
         .to_string()
         .await?;
 
@@ -129,13 +131,13 @@ pub(crate) async fn create_server_actions_manifest(
         bail!("loader module must be evaluatable");
     };
 
-    Ok(Some((evaluable, manifest)))
+    Ok((Some(evaluable), manifest))
 }
 
 /// Finds the first page component in our loader tree, which should be the page
 /// we're currently rendering.
 #[turbo_tasks::function]
-pub(crate) async fn get_actions(module: Vc<Box<dyn Module>>) -> Result<Vc<ModuleActionMap>> {
+async fn get_actions(module: Vc<Box<dyn Module>>) -> Result<Vc<ModuleActionMap>> {
     let mut all_actions = IndexMap::new();
 
     let mut queue = VecDeque::from([module]);
@@ -172,24 +174,16 @@ async fn parse_actions(module: Vc<Box<dyn Module>>) -> Result<Vc<OptionActionMap
 }
 
 #[turbo_tasks::value(transparent)]
-pub(crate) struct ModuleActionMap(IndexMap<Vc<Box<dyn Module>>, Vc<ActionMap>>);
-
-#[turbo_tasks::value_impl]
-impl ModuleActionMap {
-    #[turbo_tasks::function]
-    pub fn empty() -> Vc<Self> {
-        Vc::cell(IndexMap::new())
-    }
-}
+struct ModuleActionMap(IndexMap<Vc<Box<dyn Module>>, Vc<ActionMap>>);
 
 /// Maps the hashed `(filename, exported_action_name) -> exported_action_name`,
 /// so that we can invoke the correct action function when we receive a request
 /// with the hash in `Next-Action` header.
 #[turbo_tasks::value(transparent)]
-pub(crate) struct ActionMap(IndexMap<String, String>);
+struct ActionMap(IndexMap<String, String>);
 
 #[turbo_tasks::value(transparent)]
-pub(crate) struct OptionActionMap(Option<Vc<ActionMap>>);
+struct OptionActionMap(Option<Vc<ActionMap>>);
 
 #[turbo_tasks::value_impl]
 impl OptionActionMap {

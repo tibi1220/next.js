@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use anyhow::{bail, Context, Result};
 use next_core::{
     all_server_paths,
@@ -660,6 +658,29 @@ impl AppEndpoint {
                     bail!("Entry module must be evaluatable");
                 };
                 evaluatable_assets.push(evaluatable);
+
+                if *this
+                    .app_project
+                    .project()
+                    .next_config()
+                    .enable_server_actions()
+                    .await?
+                {
+                    let (loader, manifest) = create_server_actions_manifest(
+                        app_entry.rsc_entry,
+                        node_root,
+                        &app_entry.original_name,
+                        NextRuntime::NodeJs,
+                        Vc::upcast(this.app_project.edge_rsc_module_context()),
+                        Vc::upcast(chunking_context),
+                    )
+                    .await?;
+                    output_assets.push(manifest);
+                    if let Some(loader) = loader {
+                        evaluatable_assets.push(loader);
+                    }
+                }
+
                 let files = chunking_context.evaluated_chunk_group(
                     app_entry
                         .rsc_entry
@@ -753,7 +774,9 @@ impl AppEndpoint {
                 }
             }
             NextRuntime::NodeJs => {
-                let mut entries = this.app_project.rsc_runtime_entries();
+                let mut evaluatable_assets =
+                    this.app_project.rsc_runtime_entries().await?.clone_value();
+
                 if *this
                     .app_project
                     .project()
@@ -761,7 +784,7 @@ impl AppEndpoint {
                     .enable_server_actions()
                     .await?
                 {
-                    let actions_output = create_server_actions_manifest(
+                    let (loader, manifest) = create_server_actions_manifest(
                         app_entry.rsc_entry,
                         node_root,
                         &app_entry.original_name,
@@ -770,12 +793,9 @@ impl AppEndpoint {
                         Vc::upcast(this.app_project.project().rsc_chunking_context()),
                     )
                     .await?;
-                    if let Some((loader, manifest)) = actions_output {
-                        output_assets.push(manifest);
-
-                        let entries_value = entries.await?;
-                        entries =
-                            Vc::cell(entries_value.iter().cloned().chain(once(loader)).collect());
+                    output_assets.push(manifest);
+                    if let Some(loader) = loader {
+                        evaluatable_assets.push(loader);
                     }
                 }
 
@@ -789,7 +809,7 @@ impl AppEndpoint {
                             original_name = app_entry.original_name
                         )),
                         app_entry.rsc_entry,
-                        entries,
+                        Vc::cell(evaluatable_assets),
                     );
                 server_assets.push(rsc_chunk);
 
