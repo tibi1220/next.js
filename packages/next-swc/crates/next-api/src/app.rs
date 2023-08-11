@@ -824,9 +824,6 @@ impl AppEndpoint {
                 )?;
                 server_assets.push(app_paths_manifest_output);
 
-                // TODO Generate server entry point that imports all actions by importing their
-                // respective modules.
-
                 AppEndpointOutput::NodeJs {
                     rsc_chunk,
                     server_assets: Vc::cell(server_assets),

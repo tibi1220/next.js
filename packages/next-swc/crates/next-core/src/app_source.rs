@@ -1069,15 +1069,15 @@ impl AppRenderer {
 #[turbo_tasks::value_impl]
 impl NodeEntry for AppRenderer {
     #[turbo_tasks::function]
-    async fn entry(
-        self: Vc<Self>,
-        _data: Value<ContentSourceData>,
-    ) -> Result<Vc<NodeRenderingEntry>> {
-        // There seems to be a bug. If this is ever false, it gives a manifest error.
-        let with_ssr = true;
-
+    fn entry(self: Vc<Self>, data: Value<ContentSourceData>) -> Vc<NodeRenderingEntry> {
+        let data = data.into_value();
+        let with_ssr = if let Some(headers) = data.headers {
+            !headers.contains_key("rsc")
+        } else {
+            true
+        };
         // Call with only with_ssr as key
-        Ok(self.entry(with_ssr))
+        self.entry(with_ssr)
     }
 }
 
