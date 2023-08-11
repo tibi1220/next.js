@@ -24,6 +24,7 @@ pub async fn get_next_client_transforms_rules(
     let mut rules = vec![];
 
     let modularize_imports_config = &next_config.await?.modularize_imports;
+    let enable_server_actions = *next_config.enable_server_actions().await?;
     if let Some(modularize_imports_config) = modularize_imports_config {
         rules.push(get_next_modularize_imports_rule(modularize_imports_config));
     }
@@ -38,7 +39,9 @@ pub async fn get_next_client_transforms_rules(
             Some(pages_dir)
         }
         ClientContextType::App { .. } => {
-            rules.push(get_server_actions_transform_rule(false));
+            if enable_server_actions {
+                rules.push(get_server_actions_transform_rule(false));
+            }
             None
         }
         ClientContextType::Fallback | ClientContextType::Other => None,
