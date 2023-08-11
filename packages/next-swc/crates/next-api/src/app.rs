@@ -675,7 +675,7 @@ impl AppEndpoint {
                         Vc::upcast(chunking_context),
                     )
                     .await?;
-                    output_assets.push(manifest);
+                    server_assets.push(manifest);
                     if let Some(loader) = loader {
                         evaluatable_assets.push(loader);
                     }
@@ -793,7 +793,7 @@ impl AppEndpoint {
                         Vc::upcast(this.app_project.project().rsc_chunking_context()),
                     )
                     .await?;
-                    output_assets.push(manifest);
+                    server_assets.push(manifest);
                     if let Some(loader) = loader {
                         evaluatable_assets.push(loader);
                     }
