@@ -10,7 +10,7 @@ use turbopack_binding::turbopack::{
 
 use super::module_rule_match_js_no_url;
 
-/// Returns a rule which applies the Next.js font transform.
+/// Returns a rule which applies the Next.js Server Actions transform.
 pub fn get_server_actions_transform_rule(is_server: bool) -> ModuleRule {
     let transformer =
         EcmascriptInputTransform::Plugin(Vc::cell(Box::new(NextServerActions { is_server }) as _));

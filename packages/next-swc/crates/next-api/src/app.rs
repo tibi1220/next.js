@@ -659,26 +659,22 @@ impl AppEndpoint {
                 };
                 evaluatable_assets.push(evaluatable);
 
-                if *this
-                    .app_project
-                    .project()
-                    .next_config()
-                    .enable_server_actions()
-                    .await?
-                {
-                    let (loader, manifest) = create_server_actions_manifest(
-                        app_entry.rsc_entry,
-                        node_root,
-                        &app_entry.original_name,
-                        NextRuntime::NodeJs,
-                        Vc::upcast(this.app_project.edge_rsc_module_context()),
-                        Vc::upcast(chunking_context),
-                    )
-                    .await?;
-                    server_assets.push(manifest);
-                    if let Some(loader) = loader {
-                        evaluatable_assets.push(loader);
-                    }
+                let (loader, manifest) = create_server_actions_manifest(
+                    app_entry.rsc_entry,
+                    node_root,
+                    &app_entry.original_name,
+                    NextRuntime::NodeJs,
+                    Vc::upcast(this.app_project.edge_rsc_module_context()),
+                    Vc::upcast(chunking_context),
+                    this.app_project
+                        .project()
+                        .next_config()
+                        .enable_server_actions(),
+                )
+                .await?;
+                server_assets.push(manifest);
+                if let Some(loader) = loader {
+                    evaluatable_assets.push(loader);
                 }
 
                 let files = chunking_context.evaluated_chunk_group(
@@ -777,26 +773,22 @@ impl AppEndpoint {
                 let mut evaluatable_assets =
                     this.app_project.rsc_runtime_entries().await?.clone_value();
 
-                if *this
-                    .app_project
-                    .project()
-                    .next_config()
-                    .enable_server_actions()
-                    .await?
-                {
-                    let (loader, manifest) = create_server_actions_manifest(
-                        app_entry.rsc_entry,
-                        node_root,
-                        &app_entry.original_name,
-                        NextRuntime::NodeJs,
-                        Vc::upcast(this.app_project.rsc_module_context()),
-                        Vc::upcast(this.app_project.project().rsc_chunking_context()),
-                    )
-                    .await?;
-                    server_assets.push(manifest);
-                    if let Some(loader) = loader {
-                        evaluatable_assets.push(loader);
-                    }
+                let (loader, manifest) = create_server_actions_manifest(
+                    app_entry.rsc_entry,
+                    node_root,
+                    &app_entry.original_name,
+                    NextRuntime::NodeJs,
+                    Vc::upcast(this.app_project.rsc_module_context()),
+                    Vc::upcast(this.app_project.project().rsc_chunking_context()),
+                    this.app_project
+                        .project()
+                        .next_config()
+                        .enable_server_actions(),
+                )
+                .await?;
+                server_assets.push(manifest);
+                if let Some(loader) = loader {
+                    evaluatable_assets.push(loader);
                 }
 
                 let rsc_chunk = this

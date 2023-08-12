@@ -28,9 +28,62 @@ use turbopack_binding::{
     },
 };
 
+/// Scans the RSC entry point's full module graph looking for exported Server
+/// Actions (identifiable by a magic comment in the transformed module's
+/// output), and constructs a evaluatable "action loader" entry point and
+/// manifest describing the found actions.
+///
+/// If Server Actions are not enabled, this returns an empty manifest and a None
+/// loader.
+pub(crate) async fn create_server_actions_manifest(
+    entry: Vc<Box<dyn EcmascriptChunkPlaceable>>,
+    node_root: Vc<FileSystemPath>,
+    app_page_name: &str,
+    runtime: NextRuntime,
+    asset_context: Vc<Box<dyn AssetContext>>,
+    chunking_context: Vc<Box<dyn EcmascriptChunkingContext>>,
+    enable_server_actions: Vc<bool>,
+) -> Result<(
+    Option<Vc<Box<dyn EvaluatableAsset>>>,
+    Vc<Box<dyn OutputAsset>>,
+)> {
+    // If actions aren't enabled, then there's no need to scan the module graph. We
+    // still need to generate an empty manifest so that the TS side can merge
+    // the manifest later on.
+    if !*enable_server_actions.await? {
+        let manifest = build_manifest(
+            node_root,
+            app_page_name,
+            runtime,
+            ModuleActionMap::empty(),
+            Vc::<String>::empty(),
+        )
+        .await?;
+        return Ok((None, manifest));
+    }
+
+    let actions = get_actions(Vc::upcast(entry));
+    let loader =
+        build_server_actions_loader(node_root, app_page_name, actions, asset_context).await?;
+    let Some(evaluable) = Vc::try_resolve_sidecast::<Box<dyn EvaluatableAsset>>(loader).await?
+    else {
+        bail!("loader module must be evaluatable");
+    };
+
+    let loader_id = loader.as_chunk_item(chunking_context).id().to_string();
+    let manifest = build_manifest(node_root, app_page_name, runtime, actions, loader_id).await?;
+    Ok((Some(evaluable), manifest))
+}
+
+/// Builds the "action loader" entry point, which reexports every found action
+/// behind a lazy dynamic import.
+///
+/// The actions are reexported under a hashed name (comprised of the exporting
+/// file's name and the action name). This hash matches the id sent to the
+/// client and present inside the paired manifest.
 async fn build_server_actions_loader(
     node_root: Vc<FileSystemPath>,
-    original_name: &str,
+    app_page_name: &str,
     actions: Vc<ModuleActionMap>,
     asset_context: Vc<Box<dyn AssetContext>>,
 ) -> Result<Vc<Box<dyn EcmascriptChunkPlaceable>>> {
@@ -38,12 +91,17 @@ async fn build_server_actions_loader(
 
     let mut contents = RopeBuilder::from("__turbopack_export_value__({\n");
     let mut import_map = IndexMap::with_capacity(actions.len());
+
+    // Every module which exports an action (that is accessible starting from our
+    // app page entry point) will be present. We generate a single loader file
+    // which lazily imports the respective module's chunk_item id and invokes
+    // the exported action function.
     for (i, (module, actions_map)) in actions.iter().enumerate() {
-        for (id, name) in &*actions_map.await? {
+        for (hash_id, name) in &*actions_map.await? {
             writedoc!(
                 contents,
                 "
-    \x20 '{id}': (...args) => import('ACTIONS_MODULE{i}')
+    \x20 '{hash_id}': (...args) => import('ACTIONS_MODULE{i}')
       .then(mod => (0, mod['{name}'])(...args)),\n
     ",
             )?;
@@ -52,7 +110,7 @@ async fn build_server_actions_loader(
     }
     write!(contents, "}});")?;
 
-    let output_path = node_root.join(format!("server/app{original_name}/actions.js"));
+    let output_path = node_root.join(format!("server/app{app_page_name}/actions.js"));
     let file = File::from(contents.build());
     let source = VirtualSource::new(output_path, AssetContent::file(file.into()));
     let module = asset_context.process(
@@ -69,73 +127,49 @@ async fn build_server_actions_loader(
     Ok(placeable)
 }
 
-pub(crate) async fn create_server_actions_manifest(
-    entry: Vc<Box<dyn EcmascriptChunkPlaceable>>,
+/// Builds a manifest containing every action's hashed id, with an internal
+/// module id which exports a function using that hashed name.
+async fn build_manifest(
     node_root: Vc<FileSystemPath>,
-    original_name: &str,
+    app_page_name: &str,
     runtime: NextRuntime,
-    asset_context: Vc<Box<dyn AssetContext>>,
-    chunking_context: Vc<Box<dyn EcmascriptChunkingContext>>,
-) -> Result<(
-    Option<Vc<Box<dyn EvaluatableAsset>>>,
-    Vc<Box<dyn OutputAsset>>,
-)> {
-    let actions = get_actions(Vc::upcast(entry));
-    let actions_value = actions.await?;
-
-    let path = node_root.join(format!(
-        "server/app{original_name}/server-reference-manifest.json",
+    actions: Vc<ModuleActionMap>,
+    loader_id: Vc<String>,
+) -> Result<Vc<Box<dyn OutputAsset>>> {
+    let manifest_path = node_root.join(format!(
+        "server/app{app_page_name}/server-reference-manifest.json",
     ));
     let mut manifest = ServerReferenceManifest {
         ..Default::default()
     };
 
-    if actions_value.is_empty() {
-        let manifest = Vc::upcast(VirtualOutputAsset::new(
-            path,
-            AssetContent::file(File::from(serde_json::to_string_pretty(&manifest)?).into()),
-        ));
-        return Ok((None, manifest));
-    }
-
+    let actions_value = actions.await?;
+    let loader_id_value = loader_id.await?;
     let mapping = match runtime {
         NextRuntime::Edge => &mut manifest.edge,
         NextRuntime::NodeJs => &mut manifest.node,
     };
-
-    let loader =
-        build_server_actions_loader(node_root, original_name, actions, asset_context).await?;
-    let chunk_item_id = loader
-        .as_chunk_item(chunking_context)
-        .id()
-        .to_string()
-        .await?;
 
     for value in actions_value.values() {
         let value = value.await?;
         for hash in value.keys() {
             let entry = mapping.entry(hash.clone()).or_default();
             entry.workers.insert(
-                format!("app{original_name}"),
-                ActionManifestWorkerEntry::String(chunk_item_id.clone_value()),
+                format!("app{app_page_name}"),
+                ActionManifestWorkerEntry::String(loader_id_value.clone_value()),
             );
         }
     }
-    let manifest = Vc::upcast(VirtualOutputAsset::new(
-        path,
+
+    Ok(Vc::upcast(VirtualOutputAsset::new(
+        manifest_path,
         AssetContent::file(File::from(serde_json::to_string_pretty(&manifest)?).into()),
-    ));
-
-    let Some(evaluable) = Vc::try_resolve_sidecast::<Box<dyn EvaluatableAsset>>(loader).await?
-    else {
-        bail!("loader module must be evaluatable");
-    };
-
-    Ok((Some(evaluable), manifest))
+    )))
 }
 
-/// Finds the first page component in our loader tree, which should be the page
-/// we're currently rendering.
+/// Traverses the entire module graph starting from [module], looking for magic
+/// comment which identifies server actions. Every found server action will be
+/// returned along with the module which exports that action.
 #[turbo_tasks::function]
 async fn get_actions(module: Vc<Box<dyn Module>>) -> Result<Vc<ModuleActionMap>> {
     let mut all_actions = IndexMap::new();
@@ -155,6 +189,9 @@ async fn get_actions(module: Vc<Box<dyn Module>>) -> Result<Vc<ModuleActionMap>>
     Ok(Vc::cell(all_actions))
 }
 
+/// Inspects the comments inside [module] looking for the magic actions comment.
+/// If found, we return the mapping of every action's hashed id to the name of
+/// the exported action function. If not, we return a None.
 #[turbo_tasks::function]
 async fn parse_actions(module: Vc<Box<dyn Module>>) -> Result<Vc<OptionActionMap>> {
     let Some(ecmascript_asset) =
@@ -173,15 +210,24 @@ async fn parse_actions(module: Vc<Box<dyn Module>>) -> Result<Vc<OptionActionMap
     Ok(Vc::cell(actions.map(Vc::cell)))
 }
 
+/// A mapping of every module which exports a Server Action, with the hashed id
+/// and exported name of each found action.
 #[turbo_tasks::value(transparent)]
 struct ModuleActionMap(IndexMap<Vc<Box<dyn Module>>, Vc<ActionMap>>);
 
-/// Maps the hashed `(filename, exported_action_name) -> exported_action_name`,
-/// so that we can invoke the correct action function when we receive a request
-/// with the hash in `Next-Action` header.
+#[turbo_tasks::value_impl]
+impl ModuleActionMap {
+    #[turbo_tasks::function]
+    pub fn empty() -> Vc<Self> {
+        Vc::cell(IndexMap::new())
+    }
+}
+
+/// Maps the hashed action id to the action's exported function name.
 #[turbo_tasks::value(transparent)]
 struct ActionMap(IndexMap<String, String>);
 
+/// An Option wrapper around [ActionMap].
 #[turbo_tasks::value(transparent)]
 struct OptionActionMap(Option<Vc<ActionMap>>);
 
