@@ -172,7 +172,7 @@ jobs:
             build: >-
               set -e &&
               apk update && apk upgrade &&
-              apk add --no-cache libc6-compat pkgconfig &&
+              apk add --no-cache libc6-compat pkgconfig xz &&
               wget https://nodejs.org/dist/v18.12.0/node-v18.12.0-linux-x64.tar.xz -O node.tar.xz &&
               tar -xvf node.tar.xz &&
               cd node-* && cp -r ./{bin,include,lib,share} /usr/local/ &&
@@ -217,8 +217,8 @@ jobs:
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-alpine
             build: >-
               set -e &&
-              apk update && && apk upgrade
-              apk add --no-cache libc6-compat pkgconfig &&
+              apk update && && apk upgrade && 
+              apk add --no-cache libc6-compat pkgconfig xz &&
               wget https://nodejs.org/dist/v18.12.0/node-v18.12.0-linux-x64.tar.xz -O node.tar.xz &&
               tar -xvf node.tar.xz &&
               cd node-* && cp -r ./{bin,include,lib,share} /usr/local/ &&
