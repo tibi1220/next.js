@@ -151,6 +151,7 @@ jobs:
               apt update &&
               apt install -y pkg-config curl unzip &&
               curl -fsSL https://fnm.vercel.app/install | bash &&
+              source ~/.bashrc &&
               fnm install 18 && 
               fnm use 18 &&
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
@@ -171,8 +172,9 @@ jobs:
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-alpine
             build: >-
               set -e &&
-              apk add --no-cache libc6-compat pkgconfig curl unzip &&
+              apk add --no-cache libc6-compat pkgconfig unzip &&
               curl -fsSL https://fnm.vercel.app/install | bash &&
+              source ~/.bashrc &&
               fnm install 18 && 
               fnm use 18 &&
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
@@ -195,6 +197,7 @@ jobs:
               apt update &&
               apt install -y pkg-config curl unzip &&
               curl -fsSL https://fnm.vercel.app/install | bash &&
+              source ~/.bashrc &&
               fnm install 18 && 
               fnm use 18 &&
               export JEMALLOC_SYS_WITH_LG_PAGE=16 &&
@@ -216,8 +219,9 @@ jobs:
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-alpine
             build: >-
               set -e &&
-              apk add --no-cache libc6-compat pkgconfig curl unzip &&
+              apk add --no-cache libc6-compat pkgconfig unzip &&
               curl -fsSL https://fnm.vercel.app/install | bash &&
+              source ~/.bashrc &&
               fnm install 18 && 
               fnm use 18 &&
               export JEMALLOC_SYS_WITH_LG_PAGE=16 &&
