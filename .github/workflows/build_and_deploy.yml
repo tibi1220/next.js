@@ -121,7 +121,7 @@ jobs:
               - 'metal'
 
             target: 'x86_64-unknown-linux-gnu'
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-x64
             build: >-
               set -e &&
               apt update &&
@@ -141,7 +141,7 @@ jobs:
               - 'metal'
 
             target: 'x86_64-unknown-linux-musl'
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-alpine
             build: >-
               set -e &&
               apk add --no-cache libc6-compat pkgconfig &&
@@ -174,7 +174,7 @@ jobs:
               - 'metal'
 
             target: 'aarch64-unknown-linux-gnu'
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-aarch64
             build: >-
               set -e &&
               apt update &&
@@ -195,7 +195,7 @@ jobs:
               - 'metal'
 
             target: 'aarch64-unknown-linux-musl'
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-alpine
             build: >-
               set -e &&
               apk add --no-cache libc6-compat pkgconfig &&
