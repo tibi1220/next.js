@@ -150,7 +150,7 @@ jobs:
               set -e &&
               apt update &&
               apt install -y pkg-config &&
-              wget -qO- https://install-node.vercel.app/v18 | bash -- -y
+              wget -qO- https://install-node.vercel.app/v18 | bash -s - -y
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
               rustup default "${RUST_TOOLCHAIN}" &&
               rustup target add x86_64-unknown-linux-gnu &&
@@ -171,7 +171,7 @@ jobs:
               set -e &&
               apk update &&
               apk add --no-cache libc6-compat pkgconfig &&
-              wget -qO- https://install-node.vercel.app/v18 | bash -- -y
+              wget -qO- https://install-node.vercel.app/v18 | bash -s - -y
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
               rustup default "${RUST_TOOLCHAIN}" &&
               rustup target add x86_64-unknown-linux-musl &&
@@ -191,7 +191,7 @@ jobs:
               set -e &&
               apt update &&
               apt install -y pkg-config &&
-              wget -qO- https://install-node.vercel.app/v18 | bash -- -y
+              wget -qO- https://install-node.vercel.app/v18 | bash -s - -y
               export JEMALLOC_SYS_WITH_LG_PAGE=16 &&
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
               rustup default "${RUST_TOOLCHAIN}" &&
@@ -213,7 +213,7 @@ jobs:
               set -e &&
               apk update &&
               apk add --no-cache libc6-compat pkgconfig &&
-              wget -qO- https://install-node.vercel.app/v18 | bash -- -y
+              wget -qO- https://install-node.vercel.app/v18 | bash -s - -y
               export JEMALLOC_SYS_WITH_LG_PAGE=16 &&
               npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}" && corepack enable &&
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
