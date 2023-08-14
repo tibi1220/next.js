@@ -79,40 +79,64 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          # pnpm is aliased here temporarily until the build docker
-          # image is updated past Node.js v14.19 (current 14.18.1)
-          - host:
-              - 'self-hosted'
-              - 'macos'
-              - 'arm64'
+          # - host:
+          #     - 'self-hosted'
+          #     - 'macos'
+          #     - 'arm64'
 
-            target: 'x86_64-apple-darwin'
-            build: |
-              npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}" && corepack enable
-              turbo run build-native-release --remote-cache-timeout 90 --summarize -- --target x86_64-apple-darwin --release
-              strip -x packages/next-swc/native/next-swc.*.node
+          #   target: 'x86_64-apple-darwin'
+          #   build: |
+          #     npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}" && corepack enable
+          #     turbo run build-native-release --remote-cache-timeout 90 --summarize -- --target x86_64-apple-darwin --release
+          #     strip -x packages/next-swc/native/next-swc.*.node
 
-          - host:
-              - 'self-hosted'
-              - 'windows'
-              - 'x64'
+          # - host:
+          #     - 'self-hosted'
+          #     - 'macos'
+          #     - 'arm64'
 
-            build: |
-              corepack enable
-              npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}"
-              turbo run build-native-release --remote-cache-timeout 90 --summarize -- --target x86_64-pc-windows-msvc
-            target: 'x86_64-pc-windows-msvc'
+          #   target: 'aarch64-apple-darwin'
+          #   build: |
+          #     export CC=$(xcrun -f clang);
+          #     export CXX=$(xcrun -f clang++);
+          #     SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
+          #     export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+          #     npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}" && corepack enable
+          #     turbo run build-native-release --remote-cache-timeout 90 --summarize -- --target aarch64-apple-darwin
+          #     strip -x packages/next-swc/native/next-swc.*.node
 
-          - host:
-              - 'self-hosted'
-              - 'windows'
-              - 'x64'
+          # - host:
+          #     - 'self-hosted'
+          #     - 'windows'
+          #     - 'x64'
 
-            build: |
-              corepack enable
-              npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}"
-              turbo run build-native-no-plugin --remote-cache-timeout 90 --summarize -- --release --target i686-pc-windows-msvc
-            target: 'i686-pc-windows-msvc'
+          #   build: |
+          #     corepack enable
+          #     npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}"
+          #     turbo run build-native-release --remote-cache-timeout 90 --summarize -- --target x86_64-pc-windows-msvc
+          #   target: 'x86_64-pc-windows-msvc'
+
+          # - host:
+          #     - 'self-hosted'
+          #     - 'windows'
+          #     - 'x64'
+
+          #   build: |
+          #     corepack enable
+          #     npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}"
+          #     turbo run build-native-no-plugin --remote-cache-timeout 90 --summarize -- --release --target i686-pc-windows-msvc
+          #   target: 'i686-pc-windows-msvc'
+
+          # - host:
+          #     - 'self-hosted'
+          #     - 'windows'
+          #     - 'x64'
+
+          #   target: 'aarch64-pc-windows-msvc'
+          #   build: |
+          #     corepack enable
+          #     npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}"
+          #     turbo run build-native-no-plugin-woa-release --remote-cache-timeout 90 --summarize -- --target aarch64-pc-windows-msvc
 
           - host:
               - 'self-hosted'
@@ -154,21 +178,6 @@ jobs:
 
           - host:
               - 'self-hosted'
-              - 'macos'
-              - 'arm64'
-
-            target: 'aarch64-apple-darwin'
-            build: |
-              export CC=$(xcrun -f clang);
-              export CXX=$(xcrun -f clang++);
-              SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
-              export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
-              npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}" && corepack enable
-              turbo run build-native-release --remote-cache-timeout 90 --summarize -- --target aarch64-apple-darwin
-              strip -x packages/next-swc/native/next-swc.*.node
-
-          - host:
-              - 'self-hosted'
               - 'linux'
               - 'x64'
               - 'metal'
@@ -206,17 +215,6 @@ jobs:
               rustup target add aarch64-unknown-linux-musl &&
               turbo run build-native-release --remote-cache-timeout 90 --summarize -- --target aarch64-unknown-linux-musl &&
               llvm-strip -x packages/next-swc/native/next-swc.*.node
-
-          - host:
-              - 'self-hosted'
-              - 'windows'
-              - 'x64'
-
-            target: 'aarch64-pc-windows-msvc'
-            build: |
-              corepack enable
-              npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}"
-              turbo run build-native-no-plugin-woa-release --remote-cache-timeout 90 --summarize -- --target aarch64-pc-windows-msvc
 
     name: stable - ${{ matrix.settings.target }} - node@16
     runs-on: ${{ matrix.settings.host }}
