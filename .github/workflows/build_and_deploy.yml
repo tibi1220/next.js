@@ -149,7 +149,10 @@ jobs:
             build: >-
               set -e &&
               apt update &&
-              apt install -y pkg-config &&
+              apt install -y pkg-config curl unzip &&
+              curl -fsSL https://fnm.vercel.app/install | bash &&
+              fnm install 18 && 
+              fnm use 18 &&
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
               rustup default "${RUST_TOOLCHAIN}" &&
               rustup target add x86_64-unknown-linux-gnu &&
@@ -168,7 +171,10 @@ jobs:
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-alpine
             build: >-
               set -e &&
-              apk add --no-cache libc6-compat pkgconfig &&
+              apk add --no-cache libc6-compat pkgconfig curl unzip &&
+              curl -fsSL https://fnm.vercel.app/install | bash &&
+              fnm install 18 && 
+              fnm use 18 &&
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
               rustup default "${RUST_TOOLCHAIN}" &&
               rustup target add x86_64-unknown-linux-musl &&
@@ -187,7 +193,10 @@ jobs:
             build: >-
               set -e &&
               apt update &&
-              apt install -y pkg-config &&
+              apt install -y pkg-config curl unzip &&
+              curl -fsSL https://fnm.vercel.app/install | bash &&
+              fnm install 18 && 
+              fnm use 18 &&
               export JEMALLOC_SYS_WITH_LG_PAGE=16 &&
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
               rustup default "${RUST_TOOLCHAIN}" &&
@@ -207,7 +216,10 @@ jobs:
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:stable-2022-10-24-alpine
             build: >-
               set -e &&
-              apk add --no-cache libc6-compat pkgconfig &&
+              apk add --no-cache libc6-compat pkgconfig curl unzip &&
+              curl -fsSL https://fnm.vercel.app/install | bash &&
+              fnm install 18 && 
+              fnm use 18 &&
               export JEMALLOC_SYS_WITH_LG_PAGE=16 &&
               npm i -g "@napi-rs/cli@${NAPI_CLI_VERSION}" "turbo@${TURBO_VERSION}" && corepack enable &&
               rustup toolchain install "${RUST_TOOLCHAIN}" &&
